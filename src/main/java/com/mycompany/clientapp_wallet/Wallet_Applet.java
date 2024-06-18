@@ -4,20 +4,27 @@ import javacard.framework.*;
 
 /**
  * ClassicApplet3 Java Card Applet.
- * 
+ *
  * This applet echoes back incoming APDU data.
- * 
+ *
  * Author: Benlakhal
  */
-
 public class Wallet_Applet extends Applet {
 
-    // Instruction code for the echo command
-    private static final byte ECHO_INS = (byte) 0x00;
+    // Class code
+    private static final byte WAL_CLA = (byte) 0xB0;
+
+    // Instruction code for the commands
+    private static final byte GET_BAL = (byte) 0x00;
+    private static final byte INC_BAL = (byte) 0x01;
+    private static final byte DEC_BAL = (byte) 0x02;
+    private static final byte VER_PIN = (byte) 0x03;
+
+    private short balance = 500;
 
     /**
      * Installs this applet.
-     * 
+     *
      * @param bArray the array containing installation parameters
      * @param bOffset the starting offset in bArray
      * @param bLength the length in bytes of the parameter data in bArray
@@ -35,32 +42,33 @@ public class Wallet_Applet extends Applet {
 
     /**
      * Processes an incoming APDU.
-     * 
+     *
      * @param apdu the incoming APDU
      */
     public void process(APDU apdu) {
-        // Get the APDU buffer
-        byte[] buffer = apdu.getBuffer();
 
         // Check if the applet is selected
         if (selectingApplet()) {
             return;
         }
 
-        // Get the instruction byte
+        byte[] buffer = apdu.getBuffer();
+
+        if (buffer[ISO7816.OFFSET_CLA] != WAL_CLA) {
+            ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
+        }
+
         byte ins = buffer[ISO7816.OFFSET_INS];
 
-        // Check if the instruction is the ECHO command
-        if (ins == ECHO_INS) {
-            // Get the data length
-            short dataLen = apdu.setIncomingAndReceive();
-            
-            // Echo back the incoming data
-            apdu.setOutgoing();
-            apdu.setOutgoingLength(dataLen);
-            apdu.sendBytes(ISO7816.OFFSET_CDATA, dataLen);
-        } else {
-            // Unsupported instruction
+        switch (ins)  {
+            case GET_BAL:
+                apdu.setOutgoing();
+                apdu.setOutgoingLength((byte) 2);
+                buffer[0] = (byte) (balance >> 8);
+                buffer[1] = (byte) (balance);
+                apdu.sendBytes((short) 0, (short) 2);
+                return;
+            default:
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
     }

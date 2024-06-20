@@ -20,7 +20,16 @@ public class Wallet_Applet extends Applet {
     private static final byte DEC_BAL = (byte) 0x02;
     private static final byte VER_PIN = (byte) 0x03;
 
-    private short balance = 500;
+    short balance = 100;
+
+    OwnerPIN pin;
+    private static final byte MAX_TRY = (byte) 0x03;
+    private static final byte MAX_SIZE = (byte) 0x03;
+    private byte[] pinCode = {1, 2, 3};
+
+    // signal the PIN validation is required
+    // for a credit or a debit transaction
+    final static short SW_PIN_VERIFICATION_REQUIRED = 0x6301;
 
     /**
      * Installs this applet.
@@ -30,16 +39,28 @@ public class Wallet_Applet extends Applet {
      * @param bLength the length in bytes of the parameter data in bArray
      */
     public static void install(byte[] bArray, short bOffset, byte bLength) {
-        new Wallet_Applet();
+        new Wallet_Applet(bArray, bOffset, bLength);
     }
 
     /**
      * Only this class's install method should create the applet object.
      */
-    protected Wallet_Applet() {
+    protected Wallet_Applet(byte[] bArray, short bOffset, byte bLength) {
+        pin = new OwnerPIN(MAX_TRY, MAX_SIZE);
+        pin.update(pinCode, (short) 0, MAX_SIZE);
         register();
     }
 
+    /*
+    public boolean select() {
+        // The applet declines to be selected
+        // if the pin is blocked.
+        if (pin.getTriesRemaining() == 0) {
+            return false;
+        }
+        return true;
+    }
+     */
     /**
      * Processes an incoming APDU.
      *
@@ -58,18 +79,55 @@ public class Wallet_Applet extends Applet {
             ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
         }
 
-        byte ins = buffer[ISO7816.OFFSET_INS];
-
-        switch (ins)  {
+        switch (buffer[ISO7816.OFFSET_INS]) {
             case GET_BAL:
-                apdu.setOutgoing();
-                apdu.setOutgoingLength((byte) 2);
-                buffer[0] = (byte) (balance >> 8);
-                buffer[1] = (byte) (balance);
-                apdu.sendBytes((short) 0, (short) 2);
+                get_balance(apdu);
+                return;
+            case INC_BAL:
+                inc_balance(apdu);
+                return;
+            case VER_PIN:
+                verifyPin(apdu);
                 return;
             default:
-            ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+                ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
+        }
+
+    }
+
+    private void get_balance(APDU apdu) {
+        byte[] buffer = apdu.getBuffer();
+        if (!pin.isValidated()) {
+            ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
+        }
+        apdu.setOutgoing();
+        apdu.setOutgoingLength((byte) 2);
+        buffer[0] = (byte) (balance >> 8);
+        buffer[1] = (byte) (balance);
+        apdu.sendBytes((short) 0, (short) 2);
+    }
+
+    private void inc_balance(APDU apdu) {
+        byte[] buffer = apdu.getBuffer();
+        if (!pin.isValidated()) {
+            ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
+        }
+        byte numBytes = (byte) (buffer[ISO7816.OFFSET_LC]);
+        byte byteRead = (byte)(apdu.setIncomingAndReceive());
+        if (byteRead != numBytes) ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        byte inc_value = buffer[ISO7816.OFFSET_CDATA];
+        balance = (short) (balance + inc_value);
+    }
+
+    private void verifyPin(APDU apdu) {
+        byte[] buffer = apdu.getBuffer();
+        if (pin.check(buffer, ISO7816.OFFSET_CDATA, (byte) 3)) {
+            // PIN verified successfully
+            return;
+        } else {
+            // PIN verification failed
+            ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
         }
     }
+
 }

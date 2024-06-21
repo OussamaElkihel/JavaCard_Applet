@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
- */
 package com.mycompany.clientapp_wallet;
 
 import com.licel.jcardsim.smartcardio.CardSimulator;
@@ -17,8 +13,7 @@ import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 
 /**
- *
- * @author Benlakhal
+ * Main application that tests the Wallet_Applet
  */
 public class Client_Wallet {
 
@@ -41,17 +36,17 @@ public class Client_Wallet {
         CommandAPDU selectCommand = new CommandAPDU(AIDUtil.select(appletAID));
         channel.transmit(selectCommand);
 
+        //Start with PIN verification
         System.out.println("Enter PIN: ");
         Scanner scanner = new Scanner(System.in);
         String inputPin = scanner.nextLine();
-
         // Convert the input PIN to a byte array
         byte[] pinArray = new byte[inputPin.length()];
         for (int i = 0; i < inputPin.length(); i++) {
             pinArray[i] = (byte) (inputPin.charAt(i) - '0');
         }
-
         System.out.println("Pin Verification: \n");
+        //Prepare and send APDU command
         CommandAPDU pin_apdu = new CommandAPDU(0xB0, 0x03, 0x00, 0x00, pinArray);
         ResponseAPDU response_pin = simulator.transmitCommand(pin_apdu);
         if (response_pin.getSW() == 0x9000) {
@@ -60,6 +55,7 @@ public class Client_Wallet {
             System.out.println("Error: " + Integer.toHexString(response_pin.getSW()));
         }
 
+        //Get the balance from the card
         System.out.println("Get Balance: \n");
         CommandAPDU bal_apdu = new CommandAPDU(0xB0, 0x00, 0x00, 0x00);
         ResponseAPDU response_bal = simulator.transmitCommand(bal_apdu);
@@ -70,6 +66,7 @@ public class Client_Wallet {
             System.out.println("Balance inquiry failed. SW: " + Integer.toHexString(response_bal.getSW()));
         }
 
+        //Credit operation
         System.out.println("Inc Balance: \n");
         //Get increment value and convert it to byte
         System.out.println("Enter value: ");
@@ -77,14 +74,15 @@ public class Client_Wallet {
         byte[] array_inputvalue = new byte[1];
         array_inputvalue[0] = inputvalue;
         //Apdu command
-        CommandAPDU inc_apdu = new CommandAPDU(0xB0, 0x01, 0x00, 0x00, array_inputvalue);
+        CommandAPDU inc_apdu = new CommandAPDU(0xB0, 0x02, 0x00, 0x00, array_inputvalue);
         ResponseAPDU response_inc = simulator.transmitCommand(inc_apdu);
         if (response_inc.getSW() == 0x9000) {
             System.out.println("Success ");
         } else {
             System.out.println("Failed. SW: " + Integer.toHexString(response_inc.getSW()));
         }
-
+        
+        //Get balance again to see the results
         System.out.println("Get Balance: \n");
         CommandAPDU bal0_apdu = new CommandAPDU(0xB0, 0x00, 0x00, 0x00);
         ResponseAPDU response_bal0 = simulator.transmitCommand(bal0_apdu);

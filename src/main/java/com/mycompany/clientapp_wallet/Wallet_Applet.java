@@ -3,11 +3,8 @@ package com.mycompany.clientapp_wallet;
 import javacard.framework.*;
 
 /**
- * ClassicApplet3 Java Card Applet.
- *
- * This applet echoes back incoming APDU data.
- *
- * Author: Benlakhal
+ * Wallet Java Card Applet.
+ * This Applet performs basic operations: Get balance, Credit, Debit and PIN verification.
  */
 public class Wallet_Applet extends Applet {
 
@@ -51,16 +48,6 @@ public class Wallet_Applet extends Applet {
         register();
     }
 
-    /*
-    public boolean select() {
-        // The applet declines to be selected
-        // if the pin is blocked.
-        if (pin.getTriesRemaining() == 0) {
-            return false;
-        }
-        return true;
-    }
-     */
     /**
      * Processes an incoming APDU.
      *
@@ -86,6 +73,9 @@ public class Wallet_Applet extends Applet {
             case INC_BAL:
                 inc_balance(apdu);
                 return;
+            case DEC_BAL:
+                dec_balance(apdu);
+                return;
             case VER_PIN:
                 verifyPin(apdu);
                 return;
@@ -96,29 +86,53 @@ public class Wallet_Applet extends Applet {
     }
 
     private void get_balance(APDU apdu) {
+        //get buffer
         byte[] buffer = apdu.getBuffer();
+        //verify pin
         if (!pin.isValidated()) {
             ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
         }
+        //set the data transfer direction to outbound
         apdu.setOutgoing();
         apdu.setOutgoingLength((byte) 2);
+        //prepare buffer
         buffer[0] = (byte) (balance >> 8);
         buffer[1] = (byte) (balance);
+        //send values
         apdu.sendBytes((short) 0, (short) 2);
     }
 
     private void inc_balance(APDU apdu) {
+        //get buffer
         byte[] buffer = apdu.getBuffer();
+        //verify pin
         if (!pin.isValidated()) {
             ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
         }
+        //get the number of sent bytes
         byte numBytes = (byte) (buffer[ISO7816.OFFSET_LC]);
+        //get the number of bytes read
         byte byteRead = (byte)(apdu.setIncomingAndReceive());
+        //if byteRead != numBytes throw Exception
         if (byteRead != numBytes) ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        //read the value from buffer
         byte inc_value = buffer[ISO7816.OFFSET_CDATA];
+        //increment balance
         balance = (short) (balance + inc_value);
     }
 
+    //same logic as inc_balance()
+    private void dec_balance(APDU apdu){
+        byte[] buffer = apdu.getBuffer();
+        if(!pin.isValidated()) ISOException.throwIt(SW_PIN_VERIFICATION_REQUIRED);
+        byte numBytes = (byte) (buffer[ISO7816.OFFSET_LC]);
+        byte byteRead = (byte) (apdu.setIncomingAndReceive());
+        if (byteRead != numBytes) ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        byte dec_value = buffer[ISO7816.OFFSET_CDATA];
+        balance = (short) (balance - dec_value);
+        }
+ 
+    //verify pin
     private void verifyPin(APDU apdu) {
         byte[] buffer = apdu.getBuffer();
         if (pin.check(buffer, ISO7816.OFFSET_CDATA, (byte) 3)) {
